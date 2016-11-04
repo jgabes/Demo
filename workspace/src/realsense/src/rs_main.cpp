@@ -10,6 +10,10 @@
 
 #include "rs_main.hh"
 float DEPTH_THRESHOLD = 2.5;
+int counter = 0;
+bool state_change_active = false;
+
+
 //dlib::image_window win;
 
 //
@@ -165,6 +169,7 @@ void *devicePoll(void *args) {
 				checkError();
 				cv::Mat rgb_img = cv::Mat(color_height_, color_width_, CV_8UC3,
 						cv::Scalar(0, 0, 0));
+				cv::Mat rgb_img_out = rgb_img;
 
 				cv::Mat depth_img = cv::Mat(color_height_, color_width_, CV_32FC1,
 						cv::Scalar(0, 0, 0));
@@ -172,10 +177,23 @@ void *devicePoll(void *args) {
 
 
 				rgb_img.data = (unsigned char *) color_image[idx];
+				cv::cvtColor(rgb_img, rgb_img, cv::COLOR_RGB2BGR);
 
 
 				depth_img=get_depth_image(idx, rs_device_, rgb_img,
 						depth_image[idx]);
+
+				/*
+				cv::cvtColor(rgb_img, rgb_img_out, cv::COLOR_BGR2RGB);
+				std::string also_Result = "/home/shadylady/Pictures/new_image_"
+								+ std::to_string(counter) + ".jpg";
+				cv::String new_filename(also_Result);
+
+				cv::imwrite(new_filename, rgb_img);
+				counter++;
+				 */
+
+
 				std::vector<dlib::rectangle> faces = detect_faces(rgb_img);
 				long lgArea = 0;
 				dlib::rectangle large_face;
@@ -192,15 +210,44 @@ void *devicePoll(void *args) {
 						large_face = face;
 					}
 				}
+				std_msgs::Int16 face_height_error;
+				std_msgs::Int16 face_width_error;
 				if (lgArea >0)
 				{
 					cv::Point tr(large_face.right(), large_face.top());
 					cv::Point bl(large_face.left(), large_face.bottom());
 					cv::rectangle(rgb_img, tr, bl, cv::Scalar(0,255,0), 6);
+					int face_center_height = (large_face.top()+large_face.bottom())/2;
+					int face_center_width = (large_face.left()+large_face.right())/2;
+
+
+					face_height_error.data = face_center_height-CENTER_HEIGHT;
+					face_width_error.data = face_center_width-CENTER_WIDTH;
+					//std::cout<<"height error: "<<face_height_error.data<<std::endl;
+					//std::cout<<"width error: "<<face_width_error.data<<std::endl;
+
+					if (abs(face_height_error.data) < 50){face_height_error.data = 0;}
+					if (abs(face_width_error.data) < 50){face_width_error.data = 0;}
+
+					facial_landmarks(large_face, rgb_img);
+					state_change_active = true;
 				}
+				else
+				{
+					face_width_error.data = 0;
+					face_height_error.data = 0;
+				}
+
+
+				pan_pub.publish(face_width_error);
+				tilt_pub.publish(face_height_error);
+
 				cv::imshow("rgb", rgb_img);
 				cv::imshow("depth", depth_img);
 				cv::waitKey(2);
+				if (state_change_active){
+					state_change(depth_img);
+				}
 			}
 
 			idx++;
@@ -225,7 +272,7 @@ int initialize_devices() {
 
 	//	std::cout << "front 1 camera idx: " << front1_camera <<  std::endl;
 
-	vector<const char *> inventory = {
+	std::vector<const char *> inventory = {
 			"2441012451"
 	};
 
@@ -340,9 +387,18 @@ int main(int argc, char **argv) {
 	ROS_INFO_STREAM("Starting Eyes");
 	ros::NodeHandle nh;
 
+	pan_pub = nh.advertise<std_msgs::Int16>("servo_pan", 1); //create a publisher
+	tilt_pub = nh.advertise<std_msgs::Int16>("servo_tilt", 1); //create a publisher
+
 	//////////////////////////////////////////////////////////
 	// Output RGB
 	//////////////////////////////////////////////////////////
+	std::string blah("/home/shadylady/Demo/workspace/src/realsense/src/shape_predictor_68_face_landmarks.dat");
+	//ifstream  iFile(blah, ios::binary);
+	deserialize(blah)>>my_sp;
+
+	//deserialize(my_sp, iFile);
+
 
 	ROS_INFO_STREAM("Waiting for cameras to come online.");
 	ros::Duration(3).sleep();
@@ -374,7 +430,7 @@ int main(int argc, char **argv) {
 }
 
 std::vector<dlib::rectangle> detect_faces(cv::Mat rgb_img)
-										{
+												{
 	cv::Mat mGrey;
 	// Grayscale Image of eyes camera
 	mGrey = cv::Mat(color_height_, color_width_, CV_8UC3,
@@ -389,4 +445,36 @@ std::vector<dlib::rectangle> detect_faces(cv::Mat rgb_img)
 	std::vector<dlib::rectangle> faces = detector(dlibimg);
 
 	return faces;
-										}
+												}
+
+void facial_landmarks(dlib::rectangle& face, cv::Mat& image){
+
+	cv_image<bgr_pixel> dlibimg(image);
+    full_object_detection shape = my_sp(dlibimg, face);
+    for (int i=0; i<shape.num_parts(); i++)
+    {
+    	dlib::point dlib_pt = shape.part(i);
+    	//dlib::vector<long,2> vec = dlib_pt;
+    	cv::Point cv_pt(dlib_pt(0), dlib_pt(1));
+    	cv::circle(image, cv_pt, 1, cv::Scalar(255,0,0), 1);
+    }
+	return;
+}
+
+void state_change(cv::Mat& image)
+{
+	cv::Mat mGrey = cv::Mat(color_height_, color_width_, CV_8UC3,
+			cv::Scalar(0, 0, 0));
+	cv::cvtColor(image, mGrey, CV_BGR2GRAY);
+	if(cv::countNonZero(mGrey)<20)
+	{
+		cout<<"STATE CHANGE"<<std::endl;
+		state_change_active = true;
+	}
+	//dlib::proxy_deserialize pds(blah) >> sp;
+	//my_sp.deserialize(my_sp,iFile);
+
+	// Service
+
+}
+

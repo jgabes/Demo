@@ -17,14 +17,16 @@
 #include <algorithm>
 #include <vector>
 #include <math.h>
-#include <string>
+//#include <string>
 
 #include <ros/ros.h>
 #include <std_msgs/String.h>
 #include <std_msgs/UInt8.h>
+#include <std_msgs/Int16.h>
 
 
 #include <librealsense/rs.hpp>
+#include <librealsense/rscore.hpp>
 
 #include <opencv2/core/core.hpp>
 #include <opencv2/objdetect/objdetect.hpp>
@@ -34,15 +36,28 @@
 
 #include <dlib/string.h>
 #include <dlib/image_processing/frontal_face_detector.h>
+#include <dlib/image_processing/render_face_detections.h>
+#include <dlib/image_processing.h>
 #include <dlib/opencv.h>
 #include <dlib/gui_widgets.h>
 #include <dlib/image_io.h>
 #include <dlib/image_transforms.h>
+#include <dlib/opencv/cv_image.h>
+#include <dlib/image_processing/shape_predictor.h>
 
+
+
+#include <stdio.h>
+#include <string>
+#include <iostream>
+#include <iomanip>
+#include <locale>
+#include <sstream>
 
 //======================================================================='
 
 using namespace std;
+using namespace dlib;
 
 std::string front1_camera;
 std::string front2_camera;
@@ -53,6 +68,8 @@ const int COLOR_WIDTH = 640;
 const int DEPTH_HEIGHT = 480;
 const int DEPTH_WIDTH = 640;
 const int MAX_Z = 6;  // in meters
+const int CENTER_HEIGHT=COLOR_HEIGHT/2;
+const int CENTER_WIDTH = COLOR_WIDTH/2;
 
 int color_height_ = COLOR_HEIGHT;
 int color_width_ = COLOR_WIDTH;
@@ -74,6 +91,7 @@ double FaceDetectionThreshold = 25;
 
 dlib::frontal_face_detector detector = dlib::get_frontal_face_detector();
 
+ros::Publisher pan_pub, tilt_pub;
 
 int freq_count = 0;
 int image_count = 0;
@@ -83,8 +101,8 @@ int image_count = 0;
 ros::Time time_stamp_;
 
 
-/////
-// Service
+dlib::shape_predictor my_sp;
+
 bool runApp = true;
 pthread_t device_thread_;
 //========================================================================
@@ -112,6 +130,16 @@ int initialize_devices();
 
 //find faces in an image using dlib
 std::vector<dlib::rectangle> detect_faces(cv::Mat rgb_img);
+
+
+//highlight landmarks
+void facial_landmarks(dlib::rectangle& face, cv::Mat& image);
+
+
+//change state
+void state_change(cv::Mat& image);
+
+
 
 
 
