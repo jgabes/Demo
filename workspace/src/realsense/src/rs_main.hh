@@ -48,11 +48,25 @@
 
 
 #include <stdio.h>
-#include <string>
 #include <iostream>
 #include <iomanip>
 #include <locale>
 #include <sstream>
+
+
+#include "opencv2/imgproc/imgproc.hpp"
+#include "opencv2/imgproc/types_c.h"
+#include "opencv2/highgui/highgui_c.h"
+#include <opencv2/opencv.hpp>
+#include <stdlib.h>
+#include <iostream>
+#include "myImage.hpp"
+#include "roi.hpp"
+#include "handGesture.hpp"
+#include <cmath>
+#include "fake_main.hpp"
+#include <boost/shared_ptr.hpp>
+#include "rsROSDevice.h"
 
 //======================================================================='
 
@@ -109,27 +123,31 @@ pthread_t device_thread_;
 
 
 //Boilerplate realsense function to sense errors in the cameras
-void checkError();
+//void checkError();
 
 //realsense function to sharpen incoming image. I am critical of this
-short sharpen(cv::Mat &inputframe);
+//short sharpen(cv::Mat &inputframe);
 
 
 //function to get depth images, transform them into the color image frame
 // and publish them as std_msgs::Image with 3 layers of floats
-cv::Mat get_depth_image(int theIdx, rs_device *rs_device_, cv::Mat &image_color, const uint16_t *theDepthImg);
+//cv::Mat get_depth_image(int theIdx, rs_device *rs_device_, cv::Mat &image_color, const uint16_t *theDepthImg);
 
 
 //Main callback function which streams data from cameras and publishes the RGB
 //channels
-void *devicePoll(void *args);
+std::vector<cv::Mat> devicePoll();
 
 //initialize realsense cameras. This needs to be modified to change camera
 //serial numbers
-int initialize_devices();
+//int initialize_devices();
 
 //find faces in an image using dlib
 std::vector<dlib::rectangle> detect_faces(cv::Mat rgb_img);
+
+//track_faces
+void track_faces(std::vector<cv::Mat>& frames);
+
 
 
 //highlight landmarks
@@ -138,6 +156,8 @@ void facial_landmarks(dlib::rectangle& face, cv::Mat& image);
 
 //change state
 void state_change(cv::Mat& image);
+
+void get_palm(int count);
 
 
 

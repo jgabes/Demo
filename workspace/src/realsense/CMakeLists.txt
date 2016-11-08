@@ -132,14 +132,19 @@ include_directories(
 
 
 ## Declare a C++ library
-# add_library(realsense_face_node
-#   src/${PROJECT_NAME}/realsense_face_node.cpp
-# )
+ add_library(hand_find
+   src/handGesture.cpp
+   src/myImage.cpp
+   src/roi.cpp
+ )
+  add_library(rsROSDevice
+   src/rsROSDevice.cpp
+ )
 
 ## Add cmake target dependencies of the library
 ## as an example, code may need to be generated before libraries
 ## either from message generation or dynamic reconfigure
-# add_dependencies(realsense_face_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+ add_dependencies(rsROSDevice ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
 ## Declare a C++ executable
 #add_executable(realsense_face_node_node src/realsense_face_node_node.cpp)
@@ -149,9 +154,11 @@ include_directories(
 # add_dependencies(realsense_face_node_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
 ## Specify libraries to link a library or executable target against
-# target_link_libraries(realsense_face_node_node
-#   ${catkin_LIBRARIES}
-# )
+ target_link_libraries(rsROSDevice
+   ${catkin_LIBRARIES}
+   realsense
+   ${OpenCV_LIBS}
+ )
 
 
 add_executable(rs_main src/rs_main.cpp)
@@ -159,9 +166,22 @@ target_link_libraries(rs_main
    ${catkin_LIBRARIES}
    ${OpenCV_LIBS}
    ${PCL_LIBRARIES}
+   rsROSDevice
+   hand_find
    realsense
    dlib
 )
+
+#add_executable(rs_main_OOP src/rs_main_OOP.cpp)
+#target_link_libraries(rs_main_OOP
+#   ${catkin_LIBRARIES}
+#   ${OpenCV_LIBS}
+#   ${PCL_LIBRARIES}
+#   rsROSDevice
+#   hand_find
+#   realsense
+#   dlib
+#)
    
    
 #add_executable(cv_redetect_node src/cv_redetect.cpp )
@@ -190,11 +210,11 @@ target_link_libraries(rs_main
 # )
 
 ## Mark executables and/or libraries for installation
-# install(TARGETS realsense_face_node realsense_face_node_node
-#   ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
-#   LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
-#   RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
-# )
+ install(TARGETS rsROSDevice
+   ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+   LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+   RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+ )
 
 ## Mark cpp header files for installation
 # install(DIRECTORY include/${PROJECT_NAME}/
@@ -222,3 +242,6 @@ target_link_libraries(rs_main
 
 ## Add folders to be run by python nosetests
 # catkin_add_nosetests(test)
+
+
+# export LD_LIBRARY_PATH=/usr/local/lib:/usr/local/lib/x86_64-linux-gnu:$LD_LIBRARY_PATH

@@ -12,6 +12,10 @@
 float DEPTH_THRESHOLD = 2.5;
 int counter = 0;
 bool state_change_active = false;
+int state = 0;
+bool finding_hand = true;
+MyImage m(0);
+HandGesture hg;
 
 
 //dlib::image_window win;
@@ -136,54 +140,57 @@ cv::Mat get_depth_image(int theIdx, rs_device *rs_device_,
 }
 
 #define USE_DESKTOP 1
+
 //void *devicePoll(void *args) {
 //}
-
-void *devicePoll(void *args) {
+std::vector<cv::Mat> devicePoll(){
+	//void *devicePoll(void *args) {
 	// void devicePoll(){
-	cout << "* START REALSENSE FACE TRACKING (" << devices.size() << ") *"
-			<< endl;
+
 	const uint8_t *color_image[devices.size()];
 	const uint16_t *depth_image[devices.size()];
 	const uint16_t *aligned_depth_image[devices.size()];
 
-	while (ros::ok()) {
-		//std::cout << "frame" << std::endl;
-		int idx = 0;  // reset
+	//	while (ros::ok()) {
+	//std::cout << "frame" << std::endl;
+	int idx = 0;  // reset
+	cv::Mat rgb_img = cv::Mat(color_height_, color_width_, CV_8UC3,
+			cv::Scalar(0, 0, 0));
+	cv::Mat rgb_img_out = rgb_img;
+
+	cv::Mat depth_img = cv::Mat(color_height_, color_width_, CV_32FC1,
+			cv::Scalar(0, 0, 0));
+
+
+
 #ifdef USE_DESKTOP
-		rs_device * rs_device_ = devices[0];
+	rs_device * rs_device_ = devices[0];
 #else
-		for (auto rs_device_ : devices) 
+	for (auto rs_device_ : devices)
 #endif
-		{
-			if (rs_is_device_streaming(rs_device_, 0) == 1) {
-				rs_wait_for_frames(rs_device_, &rs_error_);
-				checkError();
-				time_stamp_ = ros::Time::now();
+	{
+		if (rs_is_device_streaming(rs_device_, 0) == 1) {
+			rs_wait_for_frames(rs_device_, &rs_error_);
+			checkError();
+			time_stamp_ = ros::Time::now();
 
-				color_image[idx] = (const uint8_t *) rs_get_frame_data(
-						rs_device_, RS_STREAM_COLOR, &rs_error_);
-				depth_image[idx] = (const uint16_t *) rs_get_frame_data(
-						rs_device_, RS_STREAM_DEPTH_ALIGNED_TO_COLOR, &rs_error_);
+			color_image[idx] = (const uint8_t *) rs_get_frame_data(
+					rs_device_, RS_STREAM_COLOR, &rs_error_);
+			depth_image[idx] = (const uint16_t *) rs_get_frame_data(
+					rs_device_, RS_STREAM_DEPTH_ALIGNED_TO_COLOR, &rs_error_);
 
-				checkError();
-				cv::Mat rgb_img = cv::Mat(color_height_, color_width_, CV_8UC3,
-						cv::Scalar(0, 0, 0));
-				cv::Mat rgb_img_out = rgb_img;
-
-				cv::Mat depth_img = cv::Mat(color_height_, color_width_, CV_32FC1,
-						cv::Scalar(0, 0, 0));
+			checkError();
 
 
 
-				rgb_img.data = (unsigned char *) color_image[idx];
-				cv::cvtColor(rgb_img, rgb_img, cv::COLOR_RGB2BGR);
+			rgb_img.data = (unsigned char *) color_image[idx];
+			cv::cvtColor(rgb_img, rgb_img, cv::COLOR_RGB2BGR);
 
 
-				depth_img=get_depth_image(idx, rs_device_, rgb_img,
-						depth_image[idx]);
+			depth_img=get_depth_image(idx, rs_device_, rgb_img,
+					depth_image[idx]);
 
-				/*
+			/*
 				cv::cvtColor(rgb_img, rgb_img_out, cv::COLOR_BGR2RGB);
 				std::string also_Result = "/home/shadylady/Pictures/new_image_"
 								+ std::to_string(counter) + ".jpg";
@@ -191,71 +198,18 @@ void *devicePoll(void *args) {
 
 				cv::imwrite(new_filename, rgb_img);
 				counter++;
-				 */
+			 */
 
 
-				std::vector<dlib::rectangle> faces = detect_faces(rgb_img);
-				long lgArea = 0;
-				dlib::rectangle large_face;
-				for (auto face : faces) {
 
-					cv::Point tr(face.right(), face.top());
-					cv::Point bl(face.left(), face.bottom());
-					cv::rectangle(rgb_img, tr, bl, cv::Scalar(255,0,0), 3);
-
-
-					if (face.area() > lgArea)
-					{
-						lgArea = face.area();
-						large_face = face;
-					}
-				}
-				std_msgs::Int16 face_height_error;
-				std_msgs::Int16 face_width_error;
-				if (lgArea >0)
-				{
-					cv::Point tr(large_face.right(), large_face.top());
-					cv::Point bl(large_face.left(), large_face.bottom());
-					cv::rectangle(rgb_img, tr, bl, cv::Scalar(0,255,0), 6);
-					int face_center_height = (large_face.top()+large_face.bottom())/2;
-					int face_center_width = (large_face.left()+large_face.right())/2;
-
-
-					face_height_error.data = face_center_height-CENTER_HEIGHT;
-					face_width_error.data = face_center_width-CENTER_WIDTH;
-					//std::cout<<"height error: "<<face_height_error.data<<std::endl;
-					//std::cout<<"width error: "<<face_width_error.data<<std::endl;
-
-					if (abs(face_height_error.data) < 50){face_height_error.data = 0;}
-					if (abs(face_width_error.data) < 50){face_width_error.data = 0;}
-
-					facial_landmarks(large_face, rgb_img);
-					state_change_active = true;
-				}
-				else
-				{
-					face_width_error.data = 0;
-					face_height_error.data = 0;
-				}
-
-
-				pan_pub.publish(face_width_error);
-				tilt_pub.publish(face_height_error);
-
-				cv::imshow("rgb", rgb_img);
-				cv::imshow("depth", depth_img);
-				cv::waitKey(2);
-				if (state_change_active){
-					state_change(depth_img);
-				}
-			}
-
-			idx++;
 		}
 
-		freq_count++;
+		idx++;
 	}
-	return NULL;
+
+	//	}
+	std::vector<cv::Mat> out_vec = {rgb_img, depth_img};
+	return out_vec;
 }
 
 int initialize_devices() {
@@ -394,28 +348,57 @@ int main(int argc, char **argv) {
 	// Output RGB
 	//////////////////////////////////////////////////////////
 	std::string blah("/home/shadylady/Demo/workspace/src/realsense/src/shape_predictor_68_face_landmarks.dat");
-	//ifstream  iFile(blah, ios::binary);
 	deserialize(blah)>>my_sp;
-
-	//deserialize(my_sp, iFile);
-
 
 	ROS_INFO_STREAM("Waiting for cameras to come online.");
 	ros::Duration(3).sleep();
 
 	int num_cameras = initialize_devices();
-	if (num_cameras != 2)
-		cerr << "WARNING: FaceNode expecting 2 camera configuration." << endl;
 
 	ROS_INFO_STREAM("FaceTracking Node - Waiting for cameras to warm boot");
 	ros::Duration(1).sleep();
 
-	int rc = pthread_create(&device_thread_, NULL, devicePoll, NULL);
-	if (rc) {
-		cerr << "ERROR; return code from pthread_create() is " << rc << endl;
+	ros::Rate loop_rate(60); //set goal refresh rate (hz)
+
+	init(&m);
+
+	while (ros::ok())
+	{
+		int hand_count = 0;
+		std::vector<cv::Mat> frames = devicePoll();
+		switch(state){
+		case 0:
+		{
+			track_faces(frames);
+			break;
+		}
+		case 1:
+		{
+			cv::imshow("state changer",frames[0]);
+			cv::waitKey(2);
+			m.src=frames[0];
+			if (hand_count < 50)
+			{
+				get_palm(hand_count);
+			}
+
+
+			break;
+		}
+		case 2:
+		{
+			break;
+		}
+		}
+
+
+		ros::spinOnce();//Spin me right round
+
+		loop_rate.sleep(); //Sleep to hit goal refresh rate
 	}
 
-	ros::spin();
+
+	//	ros::spin();
 	//////////////////////////////////////////////////////////
 	// DONE
 	//////////////////////////////////////////////////////////
@@ -429,8 +412,69 @@ int main(int argc, char **argv) {
 	ROS_INFO_STREAM("Eyes Closed");
 }
 
+void track_faces(std::vector<cv::Mat>& frames)
+{
+	cv::Mat rgb_img = frames[0];
+	cv::Mat depth_img = frames[1];
+
+	std::vector<dlib::rectangle> faces = detect_faces(rgb_img);
+	long lgArea = 0;
+	dlib::rectangle large_face;
+	for (auto face : faces) {
+
+		cv::Point tr(face.right(), face.top());
+		cv::Point bl(face.left(), face.bottom());
+		cv::rectangle(rgb_img, tr, bl, cv::Scalar(255,0,0), 3);
+
+
+		if (face.area() > lgArea)
+		{
+			lgArea = face.area();
+			large_face = face;
+		}
+	}
+	std_msgs::Int16 face_height_error;
+	std_msgs::Int16 face_width_error;
+	if (lgArea >0)
+	{
+		cv::Point tr(large_face.right(), large_face.top());
+		cv::Point bl(large_face.left(), large_face.bottom());
+		cv::rectangle(rgb_img, tr, bl, cv::Scalar(0,255,0), 6);
+		int face_center_height = (large_face.top()+large_face.bottom())/2;
+		int face_center_width = (large_face.left()+large_face.right())/2;
+
+
+		face_height_error.data = face_center_height-CENTER_HEIGHT;
+		face_width_error.data = face_center_width-CENTER_WIDTH;
+		//std::cout<<"height error: "<<face_height_error.data<<std::endl;
+		//std::cout<<"width error: "<<face_width_error.data<<std::endl;
+
+		if (abs(face_height_error.data) < 50){face_height_error.data = 0;}
+		if (abs(face_width_error.data) < 50){face_width_error.data = 0;}
+
+		facial_landmarks(large_face, rgb_img);
+		state_change_active = true;
+	}
+	else
+	{
+		face_width_error.data = 0;
+		face_height_error.data = 0;
+	}
+
+
+	pan_pub.publish(face_width_error);
+	tilt_pub.publish(face_height_error);
+
+	cv::imshow("rgb", rgb_img);
+	cv::imshow("depth", depth_img);
+	cv::waitKey(2);
+	if (state_change_active){
+		state_change(depth_img);
+	}
+}
+
 std::vector<dlib::rectangle> detect_faces(cv::Mat rgb_img)
-												{
+																		{
 	cv::Mat mGrey;
 	// Grayscale Image of eyes camera
 	mGrey = cv::Mat(color_height_, color_width_, CV_8UC3,
@@ -444,25 +488,29 @@ std::vector<dlib::rectangle> detect_faces(cv::Mat rgb_img)
 	dlib::cv_image<unsigned char> dlibimg(mGrey);
 	std::vector<dlib::rectangle> faces = detector(dlibimg);
 
+
+
+
 	return faces;
-												}
+																		}
 
 void facial_landmarks(dlib::rectangle& face, cv::Mat& image){
 
 	cv_image<bgr_pixel> dlibimg(image);
-    full_object_detection shape = my_sp(dlibimg, face);
-    for (int i=0; i<shape.num_parts(); i++)
-    {
-    	dlib::point dlib_pt = shape.part(i);
-    	//dlib::vector<long,2> vec = dlib_pt;
-    	cv::Point cv_pt(dlib_pt(0), dlib_pt(1));
-    	cv::circle(image, cv_pt, 1, cv::Scalar(255,0,0), 1);
-    }
+	full_object_detection shape = my_sp(dlibimg, face);
+	for (int i=0; i<shape.num_parts(); i++)
+	{
+		dlib::point dlib_pt = shape.part(i);
+		//dlib::vector<long,2> vec = dlib_pt;
+		cv::Point cv_pt(dlib_pt(0), dlib_pt(1));
+		cv::circle(image, cv_pt, 1, cv::Scalar(255,0,0), 1);
+	}
 	return;
 }
 
 void state_change(cv::Mat& image)
 {
+
 	cv::Mat mGrey = cv::Mat(color_height_, color_width_, CV_8UC3,
 			cv::Scalar(0, 0, 0));
 	cv::cvtColor(image, mGrey, CV_BGR2GRAY);
@@ -470,11 +518,55 @@ void state_change(cv::Mat& image)
 	{
 		cout<<"STATE CHANGE"<<std::endl;
 		state_change_active = true;
+		if (state!=1){state = 1;}
+		else {state=1;}
 	}
 	//dlib::proxy_deserialize pds(blah) >> sp;
 	//my_sp.deserialize(my_sp,iFile);
 
 	// Service
+
+}
+
+void get_palm(int count)
+{
+	namedWindow("img1",CV_WINDOW_KEEPRATIO);
+	out.open("out.avi", CV_FOURCC('M', 'J', 'P', 'G'), 15, m.src.size(), true);
+	waitForPalmCover(&m, count);
+	average(&m);
+	destroyWindow("img1");
+}
+
+void hand_track(cv::Mat& image, int count)
+{
+
+
+
+
+
+
+	initWindows(m);
+	initTrackbars();
+	for(;;){
+		hg.frameNumber++;
+		m.cap >> m.src;
+		flip(m.src,m.src,1);
+		pyrDown(m.src,m.srcLR);
+		blur(m.srcLR,m.srcLR,Size(3,3));
+		cvtColor(m.srcLR,m.srcLR,ORIGCOL2COL);
+		produceBinaries(&m);
+		cvtColor(m.srcLR,m.srcLR,COL2ORIGCOL);
+		makeContours(&m, &hg);
+		hg.getFingerNumber(&m);
+		showWindows(m);
+		out << m.src;
+		//imwrite("./images/final_result.jpg",m.src);
+		if(cv::waitKey(30) == char('q')) break;
+	}
+	destroyAllWindows();
+	out.release();
+	m.cap.release();
+	return 0;
 
 }
 
