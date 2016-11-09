@@ -32,10 +32,12 @@ class HandGesture{
 		bool isHand;
 		bool detectIfHand();
 		void initVectors();
-		void getFingerNumber(MyImage *m);
+		bool getFingerNumber(MyImage *m);
 		void eleminateDefects(MyImage *m);
 		void getFingerTips(MyImage *m);
 		void drawFingerTips(MyImage *m);
+		bool decision_made = false;
+
 	private:
 		string bool2string(bool tf);
 		int fontFace;

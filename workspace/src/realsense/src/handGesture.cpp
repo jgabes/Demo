@@ -128,6 +128,7 @@ void HandGesture::addFingerNumberToVector(){
 
 // add the calculated number of fingers to image m->src
 void HandGesture::addNumberToImg(MyImage *m){
+	/*
 	int xPos=10;
 	int yPos=10;
 	int offset=30;
@@ -142,21 +143,24 @@ void HandGesture::addNumberToImg(MyImage *m){
 			xPos=10;
 		}
 	}
+	*/
 }
 
 // calculate most frequent numbers of fingers 
 // over 20 frames
-void HandGesture::getFingerNumber(MyImage *m){
+bool HandGesture::getFingerNumber(MyImage *m){
 	removeRedundantFingerTips();
+	int out_num = 0;
 	if(bRect.height > m->src.rows/2 && nrNoFinger>12 && isHand ){
 		numberColor=Scalar(0,200,0);
 		addFingerNumberToVector();
-		if(frameNumber>12){
+		if(frameNumber>62){
 			nrNoFinger=0;
 			frameNumber=0;	
 			computeFingerNumber();	
 			numbers2Display.push_back(mostFrequentFingerNumber);
 			fingerNumbers.clear();
+			decision_made = true;
 		}else{
 			frameNumber++;
 		}
@@ -165,6 +169,7 @@ void HandGesture::getFingerNumber(MyImage *m){
 		numberColor=Scalar(200,200,200);
 	}
 	addNumberToImg(m);
+	return decision_made;
 }
 
 float HandGesture::getAngle(Point s, Point f, Point e){

@@ -1,28 +1,27 @@
-//
-//      ()_()        Walt Disney Imagineering       ()_()
-//       (_)      Research and Development, Inc      (_)
-//
-//
-//! \file  src/realsense_face_node/src/realsense_face_node_spoof.hh
-//! A ROS node for particle filter tracking of faces
-//
-//====================================================================
 
 #include "rs_main.hh"
-float DEPTH_THRESHOLD = 2.5;
+float DEPTH_THRESHOLD = 1.5;
 int counter = 0;
-bool state_change_active = false;
-int state = 0;
+bool state_change_active = true;
+int state = 2;
 bool finding_hand = true;
 MyImage m(0);
 HandGesture hg;
+VideoWriter out;
+
+#define using_saved_params
+//#define debug
+
+int hand_count = 0;
+
+
 
 
 //dlib::image_window win;
-
 //
 // Real sense boiler plate error processing.
 //
+
 void checkError() {
 	if (rs_error_) {
 		ROS_ERROR_STREAM(
@@ -108,6 +107,9 @@ cv::Mat get_depth_image(int theIdx, rs_device *rs_device_,
 				p[channels * x + 0]=depth_point[0];//r
 				p[channels * x + 1]=depth_point[1];//g
 				p[channels * x + 2]=depth_point[2];//b
+				p_cc[channels * x + 2] = 0; //x
+				p_cc[channels * x + 1] = 0; //y
+				p_cc[channels * x + 0] = 0; //z
 
 				if (scaled_depth<DEPTH_THRESHOLD && scaled_depth > 0.01)
 				{
@@ -135,7 +137,7 @@ cv::Mat get_depth_image(int theIdx, rs_device *rs_device_,
 	//cv::imshow("depth image", I);
 	//cv::waitKey(2);
 
-	return I;
+	return clip_color;
 
 }
 
@@ -208,6 +210,8 @@ std::vector<cv::Mat> devicePoll(){
 	}
 
 	//	}
+	cv::flip(rgb_img, rgb_img, 1);
+	cv::flip(depth_img, depth_img, 1);
 	std::vector<cv::Mat> out_vec = {rgb_img, depth_img};
 	return out_vec;
 }
@@ -348,7 +352,7 @@ int main(int argc, char **argv) {
 	// Output RGB
 	//////////////////////////////////////////////////////////
 	std::string blah("/home/shadylady/Demo/workspace/src/realsense/src/shape_predictor_68_face_landmarks.dat");
-	deserialize(blah)>>my_sp;
+	dlib::deserialize(blah)>>my_sp;
 
 	ROS_INFO_STREAM("Waiting for cameras to come online.");
 	ros::Duration(3).sleep();
@@ -364,29 +368,65 @@ int main(int argc, char **argv) {
 
 	while (ros::ok())
 	{
-		int hand_count = 0;
+		std::cout<<"state is now: "<< state <<std::endl;
+
 		std::vector<cv::Mat> frames = devicePoll();
+		cv::Mat depth_img = frames[1];
 		switch(state){
-		case 0:
+		case 2://Face Tracking without Landmarks
 		{
 			track_faces(frames);
 			break;
 		}
-		case 1:
+		case 3: //Hand tracking to determine state
 		{
 			cv::imshow("state changer",frames[0]);
 			cv::waitKey(2);
-			m.src=frames[0];
-			if (hand_count < 50)
+
+
+			if (hand_count <= 132)
 			{
+				m.src=frames[0];
+				cout<<"getting palm, count: " <<hand_count<<std::endl;
 				get_palm(hand_count);
 			}
+			if (hand_count ==133)
+			{
+				m.src=frames[0];
+				cout<<"initing windows and trackbars"<<std::endl;
+				initWindows(m);
+				initTrackbars();
+			}
+			if (hand_count >=133)
+			{
+				m.src=frames[0];
+				cout<<"hand_tracking, count: "<<hand_count<<std::endl;
+				hand_track(m);
 
+			}
+			hand_count++;
+
+
+			std::cout<<"state is: "<< state <<std::endl;
+			if (state_change_active){
+				state_change(depth_img);
+			}
+			break;
+		}
+		case 4: //Camera!
+		{
+			m.src=frames[0];
+			track_faces(frames);
 
 			break;
 		}
-		case 2:
+		case 5: //Dancing?
 		{
+			break;
+		}
+		default:
+		{
+			state = 2;
 			break;
 		}
 		}
@@ -451,8 +491,10 @@ void track_faces(std::vector<cv::Mat>& frames)
 
 		if (abs(face_height_error.data) < 50){face_height_error.data = 0;}
 		if (abs(face_width_error.data) < 50){face_width_error.data = 0;}
-
-		facial_landmarks(large_face, rgb_img);
+		if (state ==2)
+		{
+			facial_landmarks(large_face, rgb_img);
+		}
 		state_change_active = true;
 	}
 	else
@@ -474,7 +516,7 @@ void track_faces(std::vector<cv::Mat>& frames)
 }
 
 std::vector<dlib::rectangle> detect_faces(cv::Mat rgb_img)
-																		{
+																																{
 	cv::Mat mGrey;
 	// Grayscale Image of eyes camera
 	mGrey = cv::Mat(color_height_, color_width_, CV_8UC3,
@@ -492,12 +534,12 @@ std::vector<dlib::rectangle> detect_faces(cv::Mat rgb_img)
 
 
 	return faces;
-																		}
+																																}
 
 void facial_landmarks(dlib::rectangle& face, cv::Mat& image){
 
-	cv_image<bgr_pixel> dlibimg(image);
-	full_object_detection shape = my_sp(dlibimg, face);
+	dlib::cv_image<dlib::bgr_pixel> dlibimg(image);
+	dlib::full_object_detection shape = my_sp(dlibimg, face);
 	for (int i=0; i<shape.num_parts(); i++)
 	{
 		dlib::point dlib_pt = shape.part(i);
@@ -510,63 +552,190 @@ void facial_landmarks(dlib::rectangle& face, cv::Mat& image){
 
 void state_change(cv::Mat& image)
 {
-
 	cv::Mat mGrey = cv::Mat(color_height_, color_width_, CV_8UC3,
 			cv::Scalar(0, 0, 0));
 	cv::cvtColor(image, mGrey, CV_BGR2GRAY);
+
 	if(cv::countNonZero(mGrey)<20)
 	{
 		cout<<"STATE CHANGE"<<std::endl;
-		state_change_active = true;
-		if (state!=1){state = 1;}
-		else {state=1;}
-	}
-	//dlib::proxy_deserialize pds(blah) >> sp;
-	//my_sp.deserialize(my_sp,iFile);
+		state_change_active = false;
 
-	// Service
+		state++;
+		destroyAllWindows();
+		std::cout<<"state = "<<state<<std::endl;
+	}
 
 }
 
 void get_palm(int count)
 {
-	namedWindow("img1",CV_WINDOW_KEEPRATIO);
-	out.open("out.avi", CV_FOURCC('M', 'J', 'P', 'G'), 15, m.src.size(), true);
-	waitForPalmCover(&m, count);
-	average(&m);
-	destroyWindow("img1");
+	if(count==2)
+	{
+		namedWindow("img1",CV_WINDOW_KEEPRATIO);
+		out.open("out.avi", CV_FOURCC('M', 'J', 'P', 'G'), 15, m.src.size(), true);
+		std::cout<<"setting up palm stuff"<<std::endl;
+	}
+	if (count>1 && count <101){
+		waitForPalmCover(&m, count);
+	}
+	if (count >=101 & count<=131)
+	{
+		std::cout<<"averaging. count: "<<count<<std::endl;
+		average(&m, count);
+	}
+	if (count ==132) destroyWindow("img1");
 }
 
-void hand_track(cv::Mat& image, int count)
+void hand_track(MyImage& m)
 {
 
+	cout<<"tracking hands hopefully"<<std::endl;
 
 
 
+	hg.frameNumber++;
+	flip(m.src,m.src,1);
+	pyrDown(m.src,m.srcLR);
+	blur(m.srcLR,m.srcLR,Size(3,3));
+	cvtColor(m.srcLR,m.srcLR,ORIGCOL2COL);
 
+	cv::Mat saved_src = m.srcLR;
+	cv::Rect checker(0,0,m.srcLR.cols, m.srcLR.rows);
 
-	initWindows(m);
-	initTrackbars();
-	for(;;){
-		hg.frameNumber++;
-		m.cap >> m.src;
-		flip(m.src,m.src,1);
-		pyrDown(m.src,m.srcLR);
-		blur(m.srcLR,m.srcLR,Size(3,3));
-		cvtColor(m.srcLR,m.srcLR,ORIGCOL2COL);
-		produceBinaries(&m);
-		cvtColor(m.srcLR,m.srcLR,COL2ORIGCOL);
-		makeContours(&m, &hg);
-		hg.getFingerNumber(&m);
-		showWindows(m);
-		out << m.src;
-		//imwrite("./images/final_result.jpg",m.src);
-		if(cv::waitKey(30) == char('q')) break;
+	std::vector<dlib::rectangle> faces_2 = detect_faces(m.srcLR);
+	if (faces_2.size()>0)
+	{
+		for (auto face : faces_2) {
+			cv::Point tr(face.right(), face.top());
+			cv::Point bl(face.left(), face.bottom());
+			if(checker.contains(tr)&&checker.contains(bl)) {
+				std::cout<<"tr: "<<tr<<"bl: "<<bl<<std::endl;
+				cv::Mat pRoi = m.srcLR(cv::Rect(tr, bl));
+				pRoi.setTo(cv::Scalar(0,0,0));
+				cv::rectangle(m.srcLR, tr, bl, cv::Scalar(255,0,0), 3);
+			}
+			else
+			{
+				std::cout<<"Yo rectangle be messed up"<<std::endl;
+				std::cout<<"tr: "<<tr<<"bl: "<<bl<<std::endl;
+			}
+		}
+#ifdef debug
+		cv::imshow("lowresface", m.srcLR);
+		cv::waitKey(2);
+#endif
 	}
-	destroyAllWindows();
-	out.release();
-	m.cap.release();
-	return 0;
+	produceBinaries(&m);
+	cvtColor(m.srcLR,m.srcLR,COL2ORIGCOL);
+	makeContours(&m, &hg);
+
+
+	showWindows(m);
+	out << m.src;
+	if(hg.getFingerNumber(&m) && hg.mostFrequentFingerNumber > 1)
+	{
+		state_change_active = true;
+
+
+		//	hg.decision_made = false;
+		//	state_change_active = false;
+		//	state = hg.mostFrequentFingerNumber;
+		//	hand_count = -1;
+
+		//		destroyAllWindows();
+		//		std::cout<<"State should change to: "<< state <<std::endl;
+
+		//		return;
+
+	}
+
+
+
+
+	//		//imwrite("./images/final_result.jpg",m.src);
+	//		if(cv::waitKey(30) == char('q')) break;
+	//	}
+	//	out.release();
+	//	m.cap.release();
+	//	return 0;
+
 
 }
 
+
+
+
+void myDrawContours(MyImage *m,HandGesture *hg){
+	drawContours(m->src,hg->hullP,hg->cIdx,cv::Scalar(200,0,0),2, 8, std::vector<Vec4i>(), 0, Point());
+
+
+
+
+	cv::rectangle(m->src,hg->bRect.tl(),hg->bRect.br(),Scalar(0,0,200));
+	std::vector<Vec4i>::iterator d=hg->defects[hg->cIdx].begin();
+	int fontFace = FONT_HERSHEY_PLAIN;
+
+
+	std::vector<Mat> channels;
+	Mat result;
+	for(int i=0;i<3;i++)
+		channels.push_back(m->bw);
+	merge(channels,result);
+	//	drawContours(result,hg->contours,hg->cIdx,cv::Scalar(0,200,0),6, 8, vector<Vec4i>(), 0, Point());
+	drawContours(result,hg->hullP,hg->cIdx,cv::Scalar(0,0,250),10, 8, std::vector<Vec4i>(), 0, Point());
+
+
+	while( d!=hg->defects[hg->cIdx].end() ) {
+		Vec4i& v=(*d);
+		int startidx=v[0]; Point ptStart(hg->contours[hg->cIdx][startidx] );
+		int endidx=v[1]; Point ptEnd(hg->contours[hg->cIdx][endidx] );
+		int faridx=v[2]; Point ptFar(hg->contours[hg->cIdx][faridx] );
+		float depth = v[3] / 256;
+		/*
+		line( m->src, ptStart, ptFar, Scalar(0,255,0), 1 );
+	    line( m->src, ptEnd, ptFar, Scalar(0,255,0), 1 );
+   		circle( m->src, ptFar,   4, Scalar(0,255,0), 2 );
+   		circle( m->src, ptEnd,   4, Scalar(0,0,255), 2 );
+   		circle( m->src, ptStart,   4, Scalar(255,0,0), 2 );
+		 */
+		circle( result, ptFar,   9, Scalar(0,205,0), 5 );
+
+
+		d++;
+
+	}
+	//	imwrite("./images/contour_defects_before_eliminate.jpg",result);
+
+}
+
+void makeContours(MyImage *m, HandGesture* hg){
+	Mat aBw;
+	pyrUp(m->bw,m->bw);
+	m->bw.copyTo(aBw);
+	findContours(aBw,hg->contours,CV_RETR_EXTERNAL,CV_CHAIN_APPROX_NONE);
+	hg->initVectors();
+	hg->cIdx=findBiggestContour(hg->contours);
+	if(hg->cIdx!=-1){
+		//		approxPolyDP( Mat(hg->contours[hg->cIdx]), hg->contours[hg->cIdx], 11, true );
+		hg->bRect=boundingRect(Mat(hg->contours[hg->cIdx]));
+		convexHull(Mat(hg->contours[hg->cIdx]),hg->hullP[hg->cIdx],false,true);
+		convexHull(Mat(hg->contours[hg->cIdx]),hg->hullI[hg->cIdx],false,false);
+		approxPolyDP( Mat(hg->hullP[hg->cIdx]), hg->hullP[hg->cIdx], 18, true );
+		if(hg->contours[hg->cIdx].size()>3 ){
+			convexityDefects(hg->contours[hg->cIdx],hg->hullI[hg->cIdx],hg->defects[hg->cIdx]);
+			hg->eleminateDefects(m);
+		}
+		bool isHand=hg->detectIfHand();
+		hg->printGestureInfo(m->src);
+		if(isHand){
+			hg->getFingerTips(m);
+			hg->drawFingerTips(m);
+			myDrawContours(m,hg);
+		}
+	}
+}
+
+void play_animation(){
+
+}

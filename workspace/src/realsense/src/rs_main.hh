@@ -1,14 +1,3 @@
-//
-//      ()_()        Walt Disney Imagineering       ()_()
-//       (_)      Research and Development, Inc      (_)
-//
-//
-//! \file  src/realsense_face_node/src/realsense_face_node.hh
-//! A ROS node for reading realsense cameras and streaming the data as ROS
-// RGB images and depth images
-//
-//====================================================================
-
 
 #ifndef REALSENSE_FACE_NODE_SRC_REALSENSE_FACE_NODE_HH_
 #define REALSENSE_FACE_NODE_SRC_REALSENSE_FACE_NODE_HH_
@@ -68,10 +57,15 @@
 #include <boost/shared_ptr.hpp>
 #include "rsROSDevice.h"
 
+#define ORIGCOL2COL CV_BGR2HLS
+#define COL2ORIGCOL CV_HLS2BGR
+#define NSAMPLES 7
+#define PI 3.14159
+
 //======================================================================='
 
 using namespace std;
-using namespace dlib;
+using namespace cv;
 
 std::string front1_camera;
 std::string front2_camera;
@@ -159,6 +153,13 @@ void state_change(cv::Mat& image);
 
 void get_palm(int count);
 
+void hand_track(MyImage& m);
+
+
+void myDrawContours(MyImage *m,HandGesture *hg);
+
+
+void makeContours(MyImage *m, HandGesture* hg);
 
 
 

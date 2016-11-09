@@ -136,9 +136,14 @@ include_directories(
    src/handGesture.cpp
    src/myImage.cpp
    src/roi.cpp
+   #src/fake_main.cpp
  )
   add_library(rsROSDevice
    src/rsROSDevice.cpp
+ )
+ 
+add_library(fake_main
+   src/fake_main.cpp
  )
 
 ## Add cmake target dependencies of the library
@@ -159,6 +164,11 @@ include_directories(
    realsense
    ${OpenCV_LIBS}
  )
+  target_link_libraries(fake_main
+   ${catkin_LIBRARIES}
+   ${OpenCV_LIBS}
+   hand_find	
+ )
 
 
 add_executable(rs_main src/rs_main.cpp)
@@ -168,6 +178,7 @@ target_link_libraries(rs_main
    ${PCL_LIBRARIES}
    rsROSDevice
    hand_find
+   fake_main
    realsense
    dlib
 )
