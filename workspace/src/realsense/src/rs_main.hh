@@ -155,11 +155,15 @@ void get_palm(int count);
 
 void hand_track(MyImage& m);
 
+void takePicture(cv::Mat& image,cv::Mat& image_clone);
+
 
 void myDrawContours(MyImage *m,HandGesture *hg);
 
 
 void makeContours(MyImage *m, HandGesture* hg);
+
+void play_animation();
 
 
 

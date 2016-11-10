@@ -1,13 +1,20 @@
 
 #include "rs_main.hh"
+
+
+
 float DEPTH_THRESHOLD = 1.5;
 int counter = 0;
+int pic_count = 0;
+int song_count = 0;
 bool state_change_active = true;
-int state = 2;
+int state = 5;
 bool finding_hand = true;
 MyImage m(0);
 HandGesture hg;
 VideoWriter out;
+
+
 
 #define using_saved_params
 //#define debug
@@ -415,13 +422,17 @@ int main(int argc, char **argv) {
 		}
 		case 4: //Camera!
 		{
-			m.src=frames[0];
+			cv::Mat img_clone = frames[0].clone();
+			std::cout<<"taking picture, camera_count is: "<<pic_count<<std::endl;
 			track_faces(frames);
-
+			takePicture(frames[0], img_clone);
+			pic_count++;
 			break;
 		}
 		case 5: //Dancing?
 		{
+			play_animation();
+			song_count++;
 			break;
 		}
 		default:
@@ -464,6 +475,7 @@ void track_faces(std::vector<cv::Mat>& frames)
 
 		cv::Point tr(face.right(), face.top());
 		cv::Point bl(face.left(), face.bottom());
+
 		cv::rectangle(rgb_img, tr, bl, cv::Scalar(255,0,0), 3);
 
 
@@ -485,7 +497,7 @@ void track_faces(std::vector<cv::Mat>& frames)
 
 
 		face_height_error.data = face_center_height-CENTER_HEIGHT;
-		face_width_error.data = face_center_width-CENTER_WIDTH;
+		face_width_error.data = -(face_center_width-CENTER_WIDTH);
 		//std::cout<<"height error: "<<face_height_error.data<<std::endl;
 		//std::cout<<"width error: "<<face_width_error.data<<std::endl;
 
@@ -562,6 +574,8 @@ void state_change(cv::Mat& image)
 		state_change_active = false;
 
 		state++;
+		counter=0;
+		pic_count = 0;
 		destroyAllWindows();
 		std::cout<<"state = "<<state<<std::endl;
 	}
@@ -736,6 +750,81 @@ void makeContours(MyImage *m, HandGesture* hg){
 	}
 }
 
-void play_animation(){
+void takePicture(cv::Mat& image,cv::Mat& image_clone){
+
+	int fontFace = cv::FONT_HERSHEY_PLAIN;
+	cv::Scalar fColor(245,200,200);
+	int xpos=image.cols/2;
+	int ypos=image.rows/2;
+	float fontSize=15.0f;
+
+
+	//3
+	if (pic_count >= 0 && pic_count < 30)
+	{
+		std::string Number= "3";
+		cv::putText(image,Number,cv::Point(ypos,xpos),fontFace,fontSize,fColor);
+		cv::imshow("countdown", image);
+		cv::waitKey(2);
+	}
+
+	//2
+	if (pic_count >= 30 && pic_count < 60)
+	{
+		state_change_active = true;
+		std::string Number= "2";
+		cv::putText(image,Number,cv::Point(ypos,xpos),fontFace,fontSize,fColor);
+		cv::imshow("countdown", image);
+		cv::waitKey(2);
+	}
+
+	//1
+	if (pic_count >= 60 && pic_count < 90)
+	{
+		std::string Number= "1";
+		cv::putText(image,Number,cv::Point(ypos,xpos),fontFace,fontSize,fColor);
+		cv::imshow("countdown", image);
+		cv::waitKey(2);
+	}
+
+	//take picture
+	if (pic_count==90)
+	{
+		cv::imwrite("/home/shadylady/Desktop/demo_photo.jpg", image_clone);
+	}
+	//Display Image
+	if (pic_count >= 90 && pic_count<95)
+	{
+		cv::imshow("countdown" , cv::imread("/home/shadylady/Desktop/demo_photo.jpg"));
+		cv::waitKey(100);
+	}
 
 }
+
+void play_animation(){
+
+	if (song_count ==0)
+	{
+	cv::waitKey(0);
+	}
+	std_msgs::Int16 face_height_error;
+	std_msgs::Int16 face_width_error;
+	if (song_count==3*30){
+	face_width_error.data = -32000;
+	face_height_error.data = 0;
+	}
+	else
+	{
+		face_width_error.data = 0;
+		face_height_error.data = 0;
+	}
+
+
+pan_pub.publish(face_width_error);
+tilt_pub.publish(face_height_error);
+
+}
+
+
+
+//rosrun rosserial_python serial_node.py /dev/ttyACM0
