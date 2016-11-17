@@ -399,14 +399,14 @@ int main(int argc, char **argv) {
 			}
 			if (hand_count ==133)
 			{
-				m.src=frames[1];
+				m.src=frames[0];
 				cout<<"initing windows and trackbars"<<std::endl;
 				initWindows(m);
 				initTrackbars();
 			}
 			if (hand_count >=133)
 			{
-				m.src=frames[1];
+				m.src=frames[0];
 				cout<<"hand_tracking, count: "<<hand_count<<std::endl;
 				hand_track(m);
 

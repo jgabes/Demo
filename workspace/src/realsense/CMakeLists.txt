@@ -183,6 +183,18 @@ target_link_libraries(rs_main
    dlib
 )
 
+add_executable(rs_main_OG src/rs_main_orig.cpp)
+target_link_libraries(rs_main_OG
+   ${catkin_LIBRARIES}
+   ${OpenCV_LIBS}
+   ${PCL_LIBRARIES}
+   rsROSDevice
+   hand_find
+   fake_main
+   realsense
+   dlib
+)
+
 #add_executable(rs_main_OOP src/rs_main_OOP.cpp)
 #target_link_libraries(rs_main_OOP
 #   ${catkin_LIBRARIES}
